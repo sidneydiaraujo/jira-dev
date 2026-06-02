@@ -1,3 +1,8 @@
+---
+name: jira-dev
+description: "Skill para desenvolvedores: pesquisa de contexto no Jira, criacao e documentacao de tickets. Use esta skill quando o usuario quiser criar historias, bugs, tarefas ou subtarefas no Jira, documentar criterios de aceite, cenarios de teste ou descricao de um ticket, pesquisar regras de negocio ou combinados em issues existentes, adicionar comentarios, ou consultar o link da PR (GMUD) de um epico. Acione para frases como: 'cria uma historia no TPROJ', 'documenta esse ticket', 'adiciona criterio de aceite no TPROJ-123', 'qual a regra de negocio de X?', 'cria um bug para o epico TPROJ-100', 'adiciona cenario de teste no ticket', 'comenta no TPROJ-456', 'qual o link da PR do epico?', 'pesquisa sobre reforma tributaria no jira', 'o que esta escrito sobre garantia nos tickets'. Esta skill NAO lida com epicos nem com dados analiticos de sprint — para isso use jira-epic-automator ou jira-analytics."
+---
+
 # Jira Dev
 
 Skill para desenvolvedores: pesquisa de contexto no Jira, criacao e documentacao de tickets (historias, bugs, tarefas, subtarefas).
