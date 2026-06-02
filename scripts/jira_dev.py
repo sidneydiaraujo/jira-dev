@@ -554,8 +554,9 @@ def update_description(issue_key: str,
     current_desc = _adf_to_text(f.get("description") or {})
 
     # Detectar quais secoes ja existem
-    has_ac = bool(re.search(r"crit[eé]rio|aceite|acceptance", current_desc, re.IGNORECASE))
-    has_test = bool(re.search(r"cen[aá]rio|teste|gherkin|dado que|quando|ent[aã]o", current_desc, re.IGNORECASE))
+    # Detectar secoes verificando se o titulo aparece como linha propria (cabecalho ADF vira linha isolada)
+    has_ac = bool(re.search(r"(?m)^\s*crit[eé]rios?\s+de\s+aceite\s*$", current_desc, re.IGNORECASE))
+    has_test = bool(re.search(r"(?m)^\s*cen[aá]rios?\s+de\s+teste\s*$", current_desc, re.IGNORECASE))
 
     if _is_empty(current_desc):
         new_desc = _build_full_description(
