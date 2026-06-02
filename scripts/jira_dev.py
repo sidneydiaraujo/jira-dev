@@ -14,9 +14,16 @@ import os
 import re
 import sys
 import json
-import requests
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    import requests
+except ImportError:
+    print("Instalando dependencia 'requests'...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "requests", "-q"])
+    import requests
 
 JIRA_BASE = "https://qx3prod.atlassian.net/rest/api/3"
 PROJECTS  = ["TPROJ", "TNP", "TLIGHTDIST", "TLIGHTCOM", "THP",
