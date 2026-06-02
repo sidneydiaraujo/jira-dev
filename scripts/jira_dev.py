@@ -771,7 +771,15 @@ def edit_field(issue_key: str, field: str, value) -> dict:
     elif field_id == "assignee":
         payload = {"accountId": value} if isinstance(value, str) else value
     elif field_id == "priority":
-        payload = {"name": value} if isinstance(value, str) else value
+        _priority_map = {
+            "muito alta": "Highest", "highest": "Highest",
+            "alta":       "High",    "high":    "High",
+            "media":      "Medium",  "medium":  "Medium",
+            "baixa":      "Low",     "low":     "Low",
+            "muito baixa":"Lowest",  "lowest":  "Lowest",
+        }
+        name = _priority_map.get(value.lower().strip(), value) if isinstance(value, str) else value
+        payload = {"name": name} if isinstance(name, str) else name
     elif field_id == "labels":
         payload = value if isinstance(value, list) else [value]
     else:
