@@ -113,6 +113,54 @@ result = edit_field(
 
 ---
 
+## Seletor de Estoria — Fluxo Auxiliar de Documentacao
+
+**Quando usar:** sempre que o usuario quiser documentar, editar ou apontar horas em uma estoria mas NAO informar a chave do ticket, a skill deve:
+
+1. Chamar `list_my_stories()` para buscar as estorias Em Andamento do usuario
+2. Exibir a lista numerada no formato abaixo
+3. Perguntar qual estoria ele quer usar
+4. Executar a acao na estoria escolhida
+
+```python
+from scripts.jira_dev import list_my_stories
+data = list_my_stories(status="em andamento")
+```
+
+### Formato de exibicao do seletor
+
+```
+Suas estórias Em Andamento:
+
+  1. TPROJ-11150 — teste claude jira_dev          [Alta] épico: TPROJ-10998
+  2. TPROJ-11089 — Integração CCEE fase 2         [Media] épico: TPROJ-9900
+  3. TPROJ-11043 — Ajuste na fatura de venda      [Baixa] épico: TPROJ-9750
+
+Qual você quer usar? (digite o número ou a chave)
+```
+
+### Gatilhos do seletor
+
+O seletor deve ser ativado quando o usuario disser frases como:
+- "adiciona esse texto na descricao da minha estoria"
+- "documenta a minha estoria com isso aqui"
+- "coloca esse criterio de aceite na minha historia"
+- "quero adicionar na minha estoria em andamento"
+- "adiciona um comentario na minha estoria"
+- qualquer variacao onde a acao e clara mas o ticket nao foi especificado
+
+### Status disponíveis para o seletor
+
+| O usuario diz | Filtro aplicado |
+|---|---|
+| (padrao / nao mencionou) | Em Andamento |
+| "em andamento" | Em Andamento |
+| "em testes" | Em Testes |
+| "backlog" | Backlog |
+| "todas" / "qualquer" | sem filtro de status |
+
+---
+
 ## Regra de Filtragem — Respeitar Exatamente o que o Usuario Pediu
 
 **Filtrar pelo tipo exato mencionado.** Se o usuario disser "estorias", buscar apenas `issuetype in (Historia, Story)`. Se disser "bugs", apenas `issuetype = Bug`. Se disser "tarefas", apenas `issuetype in (Tarefa, Task)`. Se disser "subtarefas", apenas `issuetype in (Subtarefa, Sub-task)`. Nunca retornar tipos que o usuario nao pediu.

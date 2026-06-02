@@ -913,6 +913,64 @@ def transition_issue(issue_key: str, status_name: str) -> dict:
 # Busca de usuarios
 # ---------------------------------------------------------------------------
 
+def list_my_stories(status: str = "em andamento") -> dict:
+    """Lista as estorias do usuario autenticado filtradas por status.
+
+    Args:
+        status: "em andamento" (padrao), "backlog", "em testes", "todas"
+
+    Retorna lista numerada pronta para o usuario escolher qual ticket quer editar.
+    """
+    me = _get_current_user()
+
+    status_map = {
+        "em andamento":  '"Em andamento"',
+        "andamento":     '"Em andamento"',
+        "backlog":       "Backlog",
+        "em testes":     '"Em Testes"',
+        "testes":        '"Em Testes"',
+        "todas":         None,
+    }
+
+    status_jql = status_map.get(status.lower().strip(), '"Em andamento"')
+
+    jql = (
+        f'assignee = "{me["accountId"]}" '
+        f'AND issuetype in (Historia, Story) '
+    )
+    if status_jql:
+        jql += f'AND status = {status_jql} '
+    jql += "ORDER BY updated DESC"
+
+    issues = _search(
+        jql,
+        "summary,status,priority,parent,customfield_10014,updated",
+        max_results=20,
+    )
+
+    items = []
+    for i, issue in enumerate(issues, start=1):
+        f = issue["fields"]
+        parent = (f.get("parent") or {}).get("key", "")
+        epic = f.get("customfield_10014") or ""
+        items.append({
+            "numero":    i,
+            "key":       issue["key"],
+            "resumo":    f.get("summary", ""),
+            "status":    (f.get("status") or {}).get("name", ""),
+            "prioridade":(f.get("priority") or {}).get("name", ""),
+            "epico":     epic or parent,
+            "atualizado": f.get("updated", "")[:10],
+        })
+
+    return {
+        "usuario": me["displayName"],
+        "filtro_status": status,
+        "total": len(items),
+        "estorias": items,
+    }
+
+
 def find_user(query: str) -> list:
     """Busca usuarios por nome ou email para obter o accountId."""
     data = _get("/user/search", params={"query": query, "maxResults": 5})
