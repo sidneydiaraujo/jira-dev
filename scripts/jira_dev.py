@@ -48,6 +48,59 @@ _EPIC_BLOCKED_NAMES = [
     "Fix Versions", "status",
 ]
 
+# Campos que NUNCA podem ser alterados por esta skill (em qualquer issue)
+_WRITE_BLOCKED_FIELDS = {
+    "parent",               # Pai — estrutura do backlog
+    "customfield_12368",    # Complexidade
+    "customfield_12436",    # IA
+    "issuetype",            # Tipo de item — alteracao estrutural
+    "fixVersions",          # Versoes corrigidas — gerenciado pelo epic automator
+} | _EPIC_BLOCKED_FIELDS
+
+_WRITE_BLOCKED_NAMES = {
+    "parent":             "Pai (campo estrutural — nao alteravel)",
+    "customfield_12368":  "Complexidade (campo bloqueado por politica)",
+    "customfield_12436":  "IA (campo bloqueado por politica)",
+    "issuetype":          "Tipo de item (alteracao estrutural nao permitida)",
+    "fixVersions":        "Versoes corrigidas (gerenciado pelo jira-epic-automator)",
+}
+
+# Mapa de nomes amigaveis para IDs de campos editaveis
+FIELD_ALIASES = {
+    "resumo":                    "summary",
+    "summary":                   "summary",
+    "descricao":                 "description",
+    "description":               "description",
+    "criterios de aceitacao":    _FIELD_AC,
+    "criterios de aceite":       _FIELD_AC,
+    "ac":                        _FIELD_AC,
+    "cenarios de teste":         _FIELD_CENARIOS,
+    "cenarios de testes":        _FIELD_CENARIOS,
+    "cenarios":                  _FIELD_CENARIOS,
+    "prioridade":                "priority",
+    "priority":                  "priority",
+    "responsavel":               "assignee",
+    "assignee":                  "assignee",
+    "categorias":                "labels",
+    "labels":                    "labels",
+    "componentes":               "components",
+    "components":                "components",
+    "data limite":               "duedate",
+    "duedate":                   "duedate",
+    "data de inicio":            "customfield_11201",
+    "sprint":                    "customfield_10016",
+    "time":                      "customfield_10600",
+    "tipo de erro":              "customfield_11429",
+    "ambiente":                  "environment",
+    "dod":                       "customfield_11209",
+    "definition of done":        "customfield_11209",
+    "dor":                       "customfield_12266",
+    "definition of ready":       "customfield_12266",
+    "criterios tecnicos":        "customfield_11568",
+    "evidencias de testes":      "customfield_12200",
+    "evidencias tecnicas":       "customfield_12233",
+}
+
 
 # ---------------------------------------------------------------------------
 # Helpers de API
@@ -606,6 +659,131 @@ def update_description(issue_key: str,
         "key": issue_key,
         "salvos": saved,
         "ignorados_ja_preenchidos": list(skipped.keys()),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Seguranca — verificacao de propriedade antes de qualquer escrita
+# ---------------------------------------------------------------------------
+
+def _get_current_user() -> dict:
+    """Retorna accountId e displayName do usuario autenticado."""
+    data = _get("/myself")
+    return {"accountId": data.get("accountId"), "displayName": data.get("displayName", "")}
+
+
+def _verify_ownership(issue_key: str) -> dict:
+    """Verifica se o usuario atual e o responsavel (assignee) do issue.
+
+    Retorna dict com 'ok': True se autorizado, ou 'erro' se nao for.
+    Bloqueia epicos por padrao — esta skill nao escreve em epicos.
+    """
+    data = _get(f"/issue/{issue_key}",
+                params={"fields": "assignee,issuetype,summary,status"})
+    f = data["fields"]
+
+    issue_type = (f.get("issuetype") or {}).get("name", "").lower()
+    if "epic" in issue_type:
+        return {
+            "ok": False,
+            "erro": f"{issue_key} e um epico. Esta skill nao escreve em epicos.",
+        }
+
+    assignee = f.get("assignee") or {}
+    assignee_id = assignee.get("accountId")
+    assignee_name = assignee.get("displayName", "nao atribuido")
+
+    me = _get_current_user()
+
+    if not assignee_id:
+        return {
+            "ok": False,
+            "erro": f"{issue_key} nao tem responsavel atribuido. Atribua-se primeiro.",
+        }
+
+    if assignee_id != me["accountId"]:
+        return {
+            "ok": False,
+            "erro": (
+                f"Voce nao e o responsavel por {issue_key}. "
+                f"Responsavel atual: {assignee_name}. "
+                "Esta skill so permite editar issues sob sua responsabilidade."
+            ),
+            "responsavel_atual": assignee_name,
+            "voce": me["displayName"],
+        }
+
+    return {
+        "ok": True,
+        "key": issue_key,
+        "responsavel": assignee_name,
+        "tipo": (f.get("issuetype") or {}).get("name", ""),
+        "status": (f.get("status") or {}).get("name", ""),
+        "resumo": f.get("summary", ""),
+    }
+
+
+def edit_field(issue_key: str, field: str, value) -> dict:
+    """Edita um campo de um issue, com verificacao de propriedade e lista de campos bloqueados.
+
+    Regras de seguranca aplicadas:
+      1. Usuario deve ser o responsavel (assignee) do issue
+      2. Issue nao pode ser um epico
+      3. Campo nao pode estar na lista de bloqueados (complexidade, IA, pai, tipo, etc.)
+      4. Campos de texto sao convertidos para ADF automaticamente
+
+    Args:
+        issue_key: chave do issue (ex: "TPROJ-11150")
+        field:     nome amigavel ou ID do campo (ex: "prioridade", "summary", "customfield_11208")
+        value:     novo valor. Para campos de texto, passe string. Para outros, passe o valor direto.
+    """
+    # Resolver alias para ID de campo
+    field_id = FIELD_ALIASES.get(field.lower().strip(), field)
+
+    # Verificar se campo e bloqueado
+    if field_id in _WRITE_BLOCKED_FIELDS:
+        nome_bloqueado = _WRITE_BLOCKED_NAMES.get(field_id, field_id)
+        return {
+            "ok": False,
+            "erro": f"Campo '{nome_bloqueado}' nao pode ser alterado por esta skill.",
+            "motivo": "Campo bloqueado por politica de seguranca.",
+        }
+
+    # Verificar propriedade do issue
+    ownership = _verify_ownership(issue_key)
+    if not ownership["ok"]:
+        return ownership
+
+    # Campos que recebem ADF (texto rico)
+    adf_fields = {
+        "description", _FIELD_AC, _FIELD_CENARIOS,
+        "customfield_11209",   # DoD
+        "customfield_12266",   # DoR
+        "customfield_11568",   # Criterios Tecnicos
+        "customfield_12233",   # Evidencias Tecnicas
+        "customfield_12200",   # Evidencias de Testes
+        "environment",
+    }
+
+    # Montar payload conforme tipo do campo
+    if field_id in adf_fields and isinstance(value, str):
+        payload = _text_to_adf(value)
+    elif field_id == "assignee":
+        payload = {"accountId": value} if isinstance(value, str) else value
+    elif field_id == "priority":
+        payload = {"name": value} if isinstance(value, str) else value
+    elif field_id == "labels":
+        payload = value if isinstance(value, list) else [value]
+    else:
+        payload = value
+
+    _put(f"/issue/{issue_key}", {"fields": {field_id: payload}})
+    return {
+        "ok": True,
+        "key": issue_key,
+        "campo": field_id,
+        "nome_campo": field,
+        "novo_valor": str(value)[:120],
     }
 
 

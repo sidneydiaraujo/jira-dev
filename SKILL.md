@@ -36,6 +36,83 @@ O UNICO campo de epico acessivel e o GMUD (link da PR).
 
 ---
 
+## Regras de Seguranca — Protecao de Dados
+
+### Verificacao de propriedade (obrigatoria antes de qualquer escrita)
+
+Antes de QUALQUER operacao de escrita (edicao de campo, apontamento de horas, transicao de status), a skill executa `_verify_ownership(issue_key)`:
+
+1. **Issue nao pode ser epico** — epicos sao bloqueados para escrita (exceto GMUD)
+2. **Usuario deve ser o responsavel (assignee)** — se o assignee for outra pessoa, a operacao e bloqueada com mensagem clara
+3. **Issue sem responsavel** — operacao bloqueada; usuario deve se atribuir primeiro
+
+```python
+from scripts.jira_dev import _verify_ownership
+check = _verify_ownership("TPROJ-11150")
+# {"ok": True, "responsavel": "Sidney...", "tipo": "Historia", ...}
+# {"ok": False, "erro": "Voce nao e o responsavel..."}
+```
+
+### Campos permanentemente bloqueados para escrita
+
+| Campo | Motivo |
+|---|---|
+| `parent` — Pai | Estrutura do backlog — alteracao causa impacto em todo o epico |
+| `customfield_12368` — Complexidade | Definido em cerimonia de refinamento — nao alteravel individualmente |
+| `customfield_12436` — IA | Campo de politica — bloqueado por definicao |
+| `issuetype` — Tipo de item | Alteracao estrutural que pode corromper o workflow |
+| `fixVersions` — Versoes corrigidas | Gerenciado exclusivamente pelo jira-epic-automator |
+| Todos os campos de epico | Quarter, datas, garantia, handover — gerenciados pelo jira-epic-automator |
+
+### O que NUNCA e permitido
+
+- Deletar qualquer issue ou campo
+- Escrever em issues onde o usuario nao e o assignee
+- Escrever em epicos (exceto GMUD)
+- Alterar os campos bloqueados acima
+- Sobrescrever campos ja preenchidos sem confirmacao explicita (force=True)
+
+---
+
+## Edicao de Campos (edit_field)
+
+**Gatilhos:** "altera o campo X do ticket", "muda a prioridade para", "atualiza o resumo do", "coloca a data limite", "troca o responsavel do ticket"
+
+```python
+from scripts.jira_dev import edit_field
+result = edit_field(
+    issue_key="TPROJ-11150",
+    field="prioridade",    # nome amigavel ou ID do campo
+    value="Alta"
+)
+```
+
+### Nomes amigaveis aceitos
+
+| O usuario diz | Campo alterado |
+|---|---|
+| "resumo" / "summary" | summary |
+| "descricao" | description |
+| "criterios de aceitacao" / "AC" | customfield_11208 |
+| "cenarios de teste" / "cenarios" | customfield_11537 |
+| "prioridade" | priority |
+| "responsavel" | assignee |
+| "categorias" / "labels" | labels |
+| "componentes" | components |
+| "data limite" | duedate |
+| "data de inicio" | customfield_11201 |
+| "sprint" | customfield_10016 |
+| "time" | customfield_10600 |
+| "tipo de erro" | customfield_11429 |
+| "ambiente" | environment |
+| "dod" / "definition of done" | customfield_11209 |
+| "dor" / "definition of ready" | customfield_12266 |
+| "criterios tecnicos" | customfield_11568 |
+| "evidencias de testes" | customfield_12200 |
+| "evidencias tecnicas" | customfield_12233 |
+
+---
+
 ## Regra de Filtragem — Respeitar Exatamente o que o Usuario Pediu
 
 **Filtrar pelo tipo exato mencionado.** Se o usuario disser "estorias", buscar apenas `issuetype in (Historia, Story)`. Se disser "bugs", apenas `issuetype = Bug`. Se disser "tarefas", apenas `issuetype in (Tarefa, Task)`. Se disser "subtarefas", apenas `issuetype in (Subtarefa, Sub-task)`. Nunca retornar tipos que o usuario nao pediu.
