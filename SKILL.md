@@ -36,6 +36,24 @@ O UNICO campo de epico acessivel e o GMUD (link da PR).
 
 ---
 
+## Regra de Filtragem — Respeitar Exatamente o que o Usuario Pediu
+
+**Filtrar pelo tipo exato mencionado.** Se o usuario disser "estorias", buscar apenas `issuetype in (Historia, Story)`. Se disser "bugs", apenas `issuetype = Bug`. Se disser "tarefas", apenas `issuetype in (Tarefa, Task)`. Se disser "subtarefas", apenas `issuetype in (Subtarefa, Sub-task)`. Nunca retornar tipos que o usuario nao pediu.
+
+| O usuario diz | issuetype no JQL |
+|---|---|
+| "estorias" / "historias" | `issuetype in (Historia, Story)` |
+| "bugs" | `issuetype = Bug` |
+| "tarefas" | `issuetype in (Tarefa, Task)` |
+| "subtarefas" | `issuetype in (Subtarefa, Sub-task)` |
+| "tickets" / "issues" / nao especificou | `issuetype in (Historia, Bug, Tarefa, Subtarefa, Story, Task, Sub-task)` |
+
+**Filtrar pelo status se mencionado.** "abertas" / "em andamento" → excluir Done/Concluido/Fechado/Finalizado. "concluidas" → apenas status finais. Sem mencao de status → retornar todas.
+
+**Filtrar pelo responsavel se mencionado.** "minhas" / "da minha responsabilidade" / "atribuidas a mim" → `assignee = currentUser()`. Nome especifico → buscar o accountId via `find_user()` e filtrar por ele.
+
+---
+
 ## Regra Principal — Nunca Sobrescrever
 
 Antes de qualquer escrita, a skill verifica o campo atual:
