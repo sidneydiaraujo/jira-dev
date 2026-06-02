@@ -22,6 +22,10 @@ JIRA_BASE = "https://qx3prod.atlassian.net/rest/api/3"
 PROJECTS  = ["TPROJ", "TNP", "TLIGHTDIST", "TLIGHTCOM", "THP",
              "TTRD", "TSRV", "PROJTHUN", "SUP", "TVAR"]
 
+# Campos dedicados para documentacao de tickets
+_FIELD_AC       = "customfield_11208"   # Criterios de Aceitacao
+_FIELD_CENARIOS = "customfield_11537"   # Cenarios de Testes
+
 # Campos de ciclo de vida de epicos — NUNCA acessar por esta skill
 _EPIC_BLOCKED_FIELDS = {
     "customfield_11450",   # Quarter
@@ -463,14 +467,18 @@ def create_issue(project_key: str,
             "erro": "Esta skill nao cria epicos. Use a jira-epic-automator para gestao de epicos."
         }
 
-    desc_adf = _build_full_description(description, acceptance_criteria, test_scenarios)
-
     fields = {
         "project": {"key": project_key},
         "summary": summary,
         "issuetype": {"name": issuetype},
-        "description": desc_adf,
     }
+
+    if description:
+        fields["description"] = _text_to_adf(description)
+    if acceptance_criteria:
+        fields[_FIELD_AC] = _text_to_adf(acceptance_criteria)
+    if test_scenarios:
+        fields[_FIELD_CENARIOS] = _text_to_adf(test_scenarios)
 
     if epic_link:
         fields["customfield_10014"] = epic_link
@@ -538,66 +546,66 @@ def update_description(issue_key: str,
                         description: str = None,
                         acceptance_criteria: str = None,
                         test_scenarios: str = None) -> dict:
-    """Atualiza a descricao de um issue de forma inteligente.
+    """Atualiza os campos de documentacao de um issue.
 
-    - Se a descricao estiver vazia: preenche com tudo que foi passado.
-    - Se ja tiver conteudo: APENAS adiciona as secoes que estiverem vazias no documento atual.
-    - Nunca apaga conteudo existente.
+    - description       → campo 'description' (corpo principal)
+    - acceptance_criteria → campo customfield_11208 (Criterios de Aceitacao)
+    - test_scenarios    → campo customfield_11537 (Cenarios de Testes)
+
+    Nunca sobrescreve campos ja preenchidos.
     """
-    data = _get(f"/issue/{issue_key}", params={"fields": "description,issuetype,summary"})
+    fields_to_read = f"description,{_FIELD_AC},{_FIELD_CENARIOS},issuetype,summary"
+    data = _get(f"/issue/{issue_key}", params={"fields": fields_to_read})
     f = data["fields"]
 
     issue_type = (f.get("issuetype") or {}).get("name", "").lower()
     if "epic" in issue_type:
-        return {"erro": "Nao e permitido editar a descricao de epicos por esta skill."}
+        return {"erro": "Nao e permitido editar campos de epicos por esta skill."}
 
-    current_desc = _adf_to_text(f.get("description") or {})
+    updates = {}
+    skipped = {}
+    saved = []
 
-    # Detectar quais secoes ja existem
-    # Detectar secoes verificando se o titulo aparece como linha propria (cabecalho ADF vira linha isolada)
-    has_ac = bool(re.search(r"(?m)^\s*crit[eé]rios?\s+de\s+aceite\s*$", current_desc, re.IGNORECASE))
-    has_test = bool(re.search(r"(?m)^\s*cen[aá]rios?\s+de\s+teste\s*$", current_desc, re.IGNORECASE))
+    # Campo descricao
+    if description:
+        current = _adf_to_text(f.get("description") or {})
+        if _is_empty(current):
+            updates["description"] = _text_to_adf(description)
+            saved.append("Descricao")
+        else:
+            skipped["Descricao"] = current[:120]
 
-    if _is_empty(current_desc):
-        new_desc = _build_full_description(
-            description or "", acceptance_criteria or "", test_scenarios or ""
-        )
-        _put(f"/issue/{issue_key}", {"fields": {"description": new_desc}})
-        return {"ok": True, "key": issue_key, "acao": "descricao criada completa"}
+    # Campo Criterios de Aceitacao
+    if acceptance_criteria:
+        current = _adf_to_text(f.get(_FIELD_AC) or {})
+        if _is_empty(current):
+            updates[_FIELD_AC] = _text_to_adf(acceptance_criteria)
+            saved.append("Criterios de Aceitacao")
+        else:
+            skipped["Criterios de Aceitacao"] = current[:120]
 
-    # Descricao ja existe — adicionar apenas secoes faltando
-    additions = []
-    if acceptance_criteria and not has_ac:
-        additions.extend(_build_adf_section("Criterios de Aceite", acceptance_criteria))
-    if test_scenarios and not has_test:
-        additions.extend(_build_adf_section("Cenarios de Teste", test_scenarios))
+    # Campo Cenarios de Testes
+    if test_scenarios:
+        current = _adf_to_text(f.get(_FIELD_CENARIOS) or {})
+        if _is_empty(current):
+            updates[_FIELD_CENARIOS] = _text_to_adf(test_scenarios)
+            saved.append("Cenarios de Testes")
+        else:
+            skipped["Cenarios de Testes"] = current[:120]
 
-    if not additions:
+    if not updates:
         return {
-            "aviso": "Descricao ja possui conteudo em todas as secoes solicitadas.",
-            "descricao_atual": current_desc[:300] + ("..." if len(current_desc) > 300 else ""),
+            "aviso": "Todos os campos solicitados ja estao preenchidos.",
+            "ja_preenchidos": skipped,
             "acao": "Nenhuma alteracao feita.",
         }
 
-    existing_adf = f.get("description") or {"type": "doc", "version": 1, "content": []}
-    existing_content = existing_adf.get("content", [])
-    new_adf = {
-        "type": "doc",
-        "version": 1,
-        "content": existing_content + additions,
-    }
-    _put(f"/issue/{issue_key}", {"fields": {"description": new_adf}})
-    sections_added = []
-    if acceptance_criteria and not has_ac:
-        sections_added.append("Criterios de Aceite")
-    if test_scenarios and not has_test:
-        sections_added.append("Cenarios de Teste")
+    _put(f"/issue/{issue_key}", {"fields": updates})
     return {
         "ok": True,
         "key": issue_key,
-        "acao": f"Secoes adicionadas: {', '.join(sections_added)}",
-        "secoes_ja_existiam": ([s for s in ["Criterios de Aceite", "Cenarios de Teste"]
-                                 if s not in sections_added]),
+        "salvos": saved,
+        "ignorados_ja_preenchidos": list(skipped.keys()),
     }
 
 
