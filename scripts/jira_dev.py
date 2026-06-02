@@ -787,6 +787,57 @@ def edit_field(issue_key: str, field: str, value) -> dict:
     }
 
 
+def clear_field(issue_key: str, field: str) -> dict:
+    """Apaga o conteudo de um campo da sua propria estoria.
+
+    Permitido apenas se:
+      - Voce for o responsavel (assignee) do issue
+      - O campo nao estiver na lista de bloqueados
+      - O campo nao for 'summary' (resumo nao pode ficar vazio no Jira)
+
+    Campos de texto (description, AC, cenarios, etc.) sao zerados com ADF vazio.
+    Campos simples (priority, labels, etc.) recebem null.
+    """
+    field_id = FIELD_ALIASES.get(field.lower().strip(), field)
+
+    if field_id in _WRITE_BLOCKED_FIELDS:
+        nome_bloqueado = _WRITE_BLOCKED_NAMES.get(field_id, field_id)
+        return {
+            "ok": False,
+            "erro": f"Campo '{nome_bloqueado}' nao pode ser alterado por esta skill.",
+        }
+
+    if field_id == "summary":
+        return {
+            "ok": False,
+            "erro": "O campo 'resumo' nao pode ser apagado — o Jira exige que esteja preenchido.",
+        }
+
+    ownership = _verify_ownership(issue_key)
+    if not ownership["ok"]:
+        return ownership
+
+    # Campos ADF: zerar com documento vazio
+    adf_fields = {
+        "description", _FIELD_AC, _FIELD_CENARIOS,
+        "customfield_11209", "customfield_12266", "customfield_11568",
+        "customfield_12233", "customfield_12200", "environment",
+    }
+
+    if field_id in adf_fields:
+        payload = {"type": "doc", "version": 1, "content": []}
+    else:
+        payload = None
+
+    _put(f"/issue/{issue_key}", {"fields": {field_id: payload}})
+    return {
+        "ok": True,
+        "key": issue_key,
+        "campo_apagado": field,
+        "field_id": field_id,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Comentarios
 # ---------------------------------------------------------------------------
