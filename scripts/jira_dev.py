@@ -626,6 +626,52 @@ def add_comment(issue_key: str, text: str) -> dict:
     }
 
 
+def add_worklog(issue_key: str, time_spent: str,
+                date: str = None, comment: str = None) -> dict:
+    """Registra apontamento de horas (worklog) em um issue.
+
+    Args:
+        issue_key:  chave do issue (ex: "TPROJ-11157")
+        time_spent: tempo gasto no formato Jira (ex: "3h", "1h 30m", "2d")
+        date:       data do apontamento em "YYYY-MM-DD" (padrao: hoje)
+        comment:    observacao opcional sobre o trabalho realizado
+    """
+    if date:
+        started = f"{date}T09:00:00.000+0000"
+    else:
+        started = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000+0000")
+
+    body = {"timeSpent": time_spent, "started": started}
+    if comment:
+        body["comment"] = _text_to_adf(comment)
+
+    result = _post(f"/issue/{issue_key}/worklog", body)
+    return {
+        "ok": True,
+        "key": issue_key,
+        "worklog_id": result.get("id"),
+        "tempo_apontado": result.get("timeSpent"),
+        "data": (result.get("started") or "")[:10],
+    }
+
+
+def transition_issue(issue_key: str, status_name: str) -> dict:
+    """Transiciona um issue para o status informado por nome.
+
+    Exemplos de status: 'Em Andamento', 'Em Testes', 'Concluido', 'Backlog', 'Bloqueado'
+    """
+    transitions = _get(f"/issue/{issue_key}/transitions").get("transitions", [])
+    match = next(
+        (t for t in transitions if status_name.lower() in t["name"].lower()), None
+    )
+    if not match:
+        available = [t["name"] for t in transitions]
+        return {"erro": f"Status '{status_name}' nao encontrado.", "disponiveis": available}
+
+    _post(f"/issue/{issue_key}/transitions", {"transition": {"id": match["id"]}})
+    return {"ok": True, "key": issue_key, "novo_status": match["name"]}
+
+
 # ---------------------------------------------------------------------------
 # Busca de usuarios
 # ---------------------------------------------------------------------------
