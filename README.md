@@ -2,6 +2,8 @@
 
 Skill do Claude Code para desenvolvedores: pesquisa de contexto no Jira, criação e documentação de tickets (histórias, bugs, tarefas, subtarefas).
 
+> **Sem configuração de token.** Esta skill usa o conector Atlassian nativo do Claude. Cada desenvolvedor autentica com a própria conta — basta habilitar o plugin uma vez.
+
 ---
 
 ## O que essa skill faz
@@ -28,7 +30,6 @@ Skill do Claude Code para desenvolvedores: pesquisa de contexto no Jira, criaç�
 | Criar histórias, bugs, tarefas, subtarefas | ✅ |
 | Editar e documentar tickets **onde você é o responsável** | ✅ |
 | Apontar horas em tickets seus | ✅ |
-| Apagar campos que você preencheu | ✅ |
 | Criar épicos | ❌ |
 | Escrever em tickets de outros desenvolvedores | ❌ |
 | Alterar Complexidade, campo IA ou campo Pai | ❌ |
@@ -39,19 +40,61 @@ Skill do Claude Code para desenvolvedores: pesquisa de contexto no Jira, criaç�
 
 ---
 
-## Pré-requisitos
+## Instalação
+
+### Pré-requisitos
 
 - [Claude Code](https://claude.ai/code) instalado (desktop, CLI ou extensão de IDE)
-- Python 3.8 ou superior
-- Biblioteca `requests` instalada
 - Conta Atlassian com acesso ao Jira `qx3prod.atlassian.net`
-- Token de API do Jira — [gerar aqui](https://id.atlassian.com/manage-profile/security/api-tokens)
+
+Não é necessário Python, pip ou token de API.
 
 ---
 
-## Instalação
+### Passo 1 — Instale o Claude Code
 
-### 1. Clone o repositório na pasta de skills do Claude
+Se ainda não tiver o Claude Code instalado:
+
+**Windows:**
+```powershell
+winget install Anthropic.ClaudeCode
+```
+
+**macOS:**
+```bash
+brew install claude-code
+```
+
+Ou baixe o instalador em [claude.ai/code](https://claude.ai/code).
+
+---
+
+### Passo 2 — Habilite o plugin Atlassian no Claude
+
+O plugin Atlassian permite que o Claude acesse o Jira com a sua conta.
+
+1. Abra o Claude Code
+2. Digite `/plugins` no chat **ou** acesse **Settings → Plugins**
+3. Localize **Atlassian Rovo** na lista
+4. Clique em **Habilitar** / **Enable**
+5. Uma janela de login Atlassian vai abrir — entre com sua conta corporativa (`@thunders.com.br`)
+6. Autorize o acesso ao Jira quando solicitado
+
+> Se o plugin não aparecer na lista, confirme com o administrador do Claude Code da organização se o Atlassian Rovo está liberado no plano.
+
+---
+
+### Passo 3 — Copie a skill para a pasta do Claude
+
+**Windows (PowerShell):**
+```powershell
+# Cria a pasta de skills se não existir
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills"
+
+# Clona a skill
+cd "$env:USERPROFILE\.claude\skills"
+git clone https://github.com/sidneydiaraujo/jira-dev
+```
 
 **macOS / Linux:**
 ```bash
@@ -60,81 +103,53 @@ cd ~/.claude/skills
 git clone https://github.com/sidneydiaraujo/jira-dev
 ```
 
-**Windows (PowerShell):**
-```powershell
-New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills"
-cd "$env:USERPROFILE\.claude\skills"
-git clone https://github.com/sidneydiaraujo/jira-dev
+> Sem Git? Baixe o ZIP pelo GitHub (`Code → Download ZIP`), extraia e mova a pasta `jira-dev` para `~/.claude/skills/`.
+
+---
+
+### Passo 4 — Reinicie o Claude Code
+
+Feche e reabra o Claude Code. A skill `jira-dev` vai aparecer na lista de skills disponíveis.
+
+Para confirmar, digite no chat:
+```
+/jira-dev quais são minhas estórias em andamento?
 ```
 
-### 2. Instale as dependências Python
+Se o Claude listar seus tickets, a instalação está completa.
 
-```bash
-pip install requests
-```
+---
 
-### 3. Configure as credenciais do Jira
+### Solução de problemas
 
-Você precisa adicionar suas credenciais ao arquivo de configuração do Claude Code.
-
-**Localize o arquivo `settings.json`:**
-
-| Sistema | Caminho |
-|---|---|
-| Windows | `C:\Users\<seu-usuario>\.claude\settings.json` |
-| macOS / Linux | `~/.claude/settings.json` |
-
-**Se o arquivo não existir**, crie-o com este conteúdo:
-
-```json
-{
-  "env": {
-    "JIRA_EMAIL": "seu-email@thunders.com.br",
-    "JIRA_API_TOKEN": "seu-token-de-api-aqui"
-  }
-}
-```
-
-**Se o arquivo já existir** (você já tem outras skills ou configurações), **adicione apenas o bloco `env`** sem apagar o restante. Exemplo de merge correto:
-
-```json
-{
-  "model": "sonnet",
-  "env": {
-    "JIRA_EMAIL": "seu-email@thunders.com.br",
-    "JIRA_API_TOKEN": "seu-token-de-api-aqui"
-  }
-}
-```
-
-> ⚠️ Nunca substitua o arquivo inteiro — isso apaga configurações existentes de outras skills.
-
-### 4. Reinicie o Claude Code
-
-Feche e reabra o Claude Code para carregar a skill. Na lista de skills disponíveis, `jira-dev` deve aparecer.
+| Sintoma | Causa provável | Solução |
+|---|---|---|
+| Skill não aparece na lista | Pasta não está em `~/.claude/skills/jira-dev/` | Verifique o caminho e reinicie |
+| "Plugin Atlassian não encontrado" | Plugin não habilitado | Siga o Passo 2 novamente |
+| "Não autorizado" ao acessar tickets | Conta logada não tem acesso ao projeto | Confirme com o admin do Jira |
+| "Conector indisponível" | Sessão expirada | Faça logout e login novamente no plugin Atlassian |
 
 ---
 
 ## Como usar
 
-A skill entende linguagem natural. Não é necessário saber a sintaxe exata.
+A skill entende linguagem natural — não é necessário saber a sintaxe exata.
 
-### Pesquisa
+### Pesquisar contexto
 
 ```
 "Qual a regra de negócio do campo CCEE?"
 "O que foi combinado sobre a integração com SAP?"
 "Quais histórias falam de reforma tributária?"
 "Tem critério de aceite para fatura de venda?"
-"O que foi decidido sobre garantia nos comentários?"
 ```
 
 ### Listar suas estórias
 
 ```
-"Procure estórias com a minha responsabilidade"
 "Quais são minhas histórias em andamento?"
 "Lista meus bugs abertos"
+"Mostra todas as minhas tarefas"
 ```
 
 ### Criar tickets
@@ -142,12 +157,12 @@ A skill entende linguagem natural. Não é necessário saber a sintaxe exata.
 ```
 "Cria uma história no TPROJ: Como usuário, quero ver minha fatura online"
 "Cria um bug no TLIGHTDIST: tela de fatura quebrando ao abrir PDF"
-"Adiciona uma subtarefa no TPROJ-123: Criar endpoint"
+"Adiciona uma subtarefa no TPROJ-123: Criar endpoint de consulta"
 ```
 
 ### Documentar tickets
 
-Se você não informar a chave do ticket, a skill lista suas estórias Em Andamento para você escolher:
+Se você não informar a chave do ticket, a skill lista suas estórias Em Andamento para escolher:
 
 ```
 "Adiciona critério de aceite na minha estória"
@@ -160,15 +175,15 @@ Se você não informar a chave do ticket, a skill lista suas estórias Em Andame
 ```
 "Muda a prioridade da TPROJ-123 para Alta"
 "Altera o resumo da TPROJ-123 para: novo título"
-"Apaga a descrição da TPROJ-123"
+"Troca o responsável da TPROJ-456 para Anderson"
 ```
 
 ### Apontar horas
 
 ```
-"Finalizei o Criar domínio, dê baixa nas horas e conclua a subtarefa"
 "Aponta 3h de hoje no TPROJ-11157"
 "Registra 1h 30m no TPROJ-456 com observação: revisão de código"
+"Lança 2h no TPROJ-789"
 ```
 
 ### Transição de status
@@ -176,7 +191,7 @@ Se você não informar a chave do ticket, a skill lista suas estórias Em Andame
 ```
 "Move a TPROJ-123 para Em Andamento"
 "Conclui a TPROJ-456"
-"Coloca a TPROJ-789 em Backlog"
+"Coloca a TPROJ-789 em Em Testes"
 ```
 
 ---
@@ -185,12 +200,12 @@ Se você não informar a chave do ticket, a skill lista suas estórias Em Andame
 
 ```
 jira-dev/
-├── SKILL.md              # Definição da skill (lida pelo Claude)
-├── scripts/
-│   └── jira_dev.py       # Funções de API, pesquisa, criação e documentação
-├── .gitignore
-└── README.md
+├── SKILL.md        ← instruções da skill (lidas pelo Claude)
+├── README.md       ← este arquivo
+└── .gitignore
 ```
+
+> Não há scripts Python nesta versão. Toda comunicação com o Jira é feita pelo conector Atlassian do Claude.
 
 ---
 
@@ -198,7 +213,7 @@ jira-dev/
 
 | Skill | Para que serve |
 |---|---|
-| [`jira-analytics`](https://github.com/sidneydiaraujo/jira-analytics) | Análise de sprints, métricas de time, saúde de épicos — somente leitura |
+| [`jira-analytics`](https://github.com/sidneydiaraujo/jira-analytics) | Análise de sprints, métricas de time, horas apontadas — somente leitura |
 | [`jira-epic-automator`](https://github.com/sidneydiaraujo/jira-epic-automator) | Ciclo de vida de épicos: Quarter, datas, garantia, status |
 | `jira-dev` | Criação e documentação de tickets do dia a dia do time |
 
@@ -206,8 +221,8 @@ jira-dev/
 
 ## Segurança
 
-- As credenciais ficam **apenas** em `settings.json` local — nunca no repositório
+- Nenhuma credencial é armazenada localmente — a autenticação é feita pelo plugin Atlassian do Claude
 - A skill só escreve em tickets onde você é o `assignee`
-- Campos bloqueados por política (Complexidade, IA, Pai) nunca são alterados
+- Campos bloqueados por política (Complexidade, IA, Pai, campos de épico) nunca são alterados
 - Campos já preenchidos não são sobrescritos sem solicitação explícita
-- Nenhuma operação de deleção está disponível na skill
+- Nenhuma operação de deleção está disponível
